@@ -48,9 +48,15 @@ const MAX_TOTAL_CHARS = 6000;
 
 const SYSTEM_PROMPT =
   "You are Nova, a friendly voice assistant demoing DigitalOcean Serverless Inference live on stage. " +
-  'Keep replies short — one to three sentences — since they will be read aloud by a text-to-speech voice. ' +
-  "Be warm, upbeat, and clear. If asked who you are or how you work, mention you're powered by " +
-  'DigitalOcean Serverless Inference: chat completions for thinking, and the audio/speech endpoint for talking.';
+  'Keep the spoken part of your answer short — one to three sentences — since it will be read aloud by a ' +
+  "text-to-speech voice. Be warm, upbeat, and clear. If asked who you are or how you work, mention you're " +
+  'powered by DigitalOcean Serverless Inference: chat completions for thinking, and the audio/speech endpoint ' +
+  'for talking.\n\n' +
+  'Whenever a real, well-known, authoritative link would genuinely help — official DigitalOcean documentation ' +
+  'for DigitalOcean-related questions, or a well-known reference such as Wikipedia for general-knowledge ' +
+  'questions — include exactly one such link on its own line at the very end of your answer, as a plain URL ' +
+  'starting with https://. Only include a link you are confident is real; never invent or guess a URL. Skip ' +
+  "the link entirely if you aren't sure one is genuinely relevant and correct.";
 
 // ---------------------------------------------------------------------------
 // DigitalOcean Inference calls
@@ -153,9 +159,22 @@ async function callSpeech({ modelAccessKey, baseUrl, model, voice, text }) {
 function mockChatReply(userText) {
   const snippet = userText.length > 80 ? userText.slice(0, 80) + '…' : userText;
   return (
-    `Dry-run mode: in a live run I'd ask DigitalOcean's chat completions endpoint to answer "${snippet}". ` +
-    "Flip DRY_RUN off and add a model access key to hear me for real!"
+    `Dry-run mode: in a live run I'd ask DigitalOcean's chat completions endpoint to answer "${snippet}", ` +
+    "and include a relevant link when one applies — like this.\n" +
+    'Flip DRY_RUN off and add a model access key to hear me for real!\n' +
+    'https://docs.digitalocean.com/products/inference/'
   );
+}
+
+// Strips URLs out of a reply before it's sent to text-to-speech, so the voice
+// doesn't read a raw link aloud — the link still appears (and is clickable)
+// in the chat bubble, which gets the untouched reply text.
+function stripLinksForSpeech(text) {
+  let s = text.replace(/https?:\/\/[^\s)]+/g, '');
+  s = s.replace(/[ \t]{2,}/g, ' ');
+  s = s.replace(/\n[ \t]*\n+/g, '\n').replace(/^\s+|\s+$/gm, '');
+  s = s.trim();
+  return s || text.trim();
 }
 
 function generateChimeWavBase64() {
@@ -277,6 +296,8 @@ const PAGE_STYLE = `
   .bubble.assistant { background: #efeaff; color: #2a1a66; border-bottom-left-radius: 4px; }
   .msg-row.system { align-self: center; align-items: center; max-width: 92%; }
   .bubble.system { background: #fff4ea; color: #9a3412; border: 1px dashed #ffcf9e; font-size: 12.5px; font-style: italic; text-align: center; border-radius: 10px; }
+  .bubble a { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+  .bubble.user a { color: #fff; }
   .bubble-meta { font-size: 10.5px; color: var(--muted); margin-top: 3px; padding: 0 4px; }
 
   .interim { min-height: 18px; font-size: 13px; color: var(--muted); font-style: italic; text-align: center; margin: 6px 0; }
@@ -355,13 +376,33 @@ function setBusy(flag) {
   for (var i = 0; i < chips.length; i++) chips[i].disabled = flag;
 }
 
+function escapeHtmlClient(s) {
+  var div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function linkify(text) {
+  var escaped = escapeHtmlClient(text);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
+    var trail = '';
+    var clean = url;
+    var m = clean.match(/[.,;:!?)\]]+$/);
+    if (m) {
+      trail = m[0];
+      clean = clean.slice(0, clean.length - trail.length);
+    }
+    return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>' + trail;
+  });
+}
+
 function addBubble(role, text, metaText) {
   var log = document.getElementById('chatLog');
   var row = document.createElement('div');
   row.className = 'msg-row ' + role;
   var bubble = document.createElement('div');
   bubble.className = 'bubble ' + role;
-  bubble.textContent = text;
+  bubble.innerHTML = linkify(text);
   row.appendChild(bubble);
   if (metaText) {
     var meta = document.createElement('div');
@@ -692,7 +733,13 @@ const server = http.createServer(async (req, res) => {
         chatLatencyS = chatResult.latency_s;
         console.log(`[chat] model=${CHAT_MODEL} ok latency=${chatLatencyS != null ? chatLatencyS.toFixed(2) : '?'}s`);
 
-        const speechResult = await callSpeech({ modelAccessKey: MODEL_ACCESS_KEY, baseUrl: BASE_URL, model: TTS_MODEL, voice: TTS_VOICE, text: reply });
+        const speechResult = await callSpeech({
+          modelAccessKey: MODEL_ACCESS_KEY,
+          baseUrl: BASE_URL,
+          model: TTS_MODEL,
+          voice: TTS_VOICE,
+          text: stripLinksForSpeech(reply),
+        });
         speechLatencyS = speechResult.latency_s;
         if (speechResult.error) {
           console.error(`[speech] model=${TTS_MODEL} voice=${TTS_VOICE} error: ${speechResult.error}`);
