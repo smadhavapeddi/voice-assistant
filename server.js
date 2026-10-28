@@ -684,15 +684,18 @@ const server = http.createServer(async (req, res) => {
       } else {
         const chatResult = await callChat({ modelAccessKey: MODEL_ACCESS_KEY, baseUrl: BASE_URL, model: CHAT_MODEL, messages });
         if (chatResult.error) {
+          console.error(`[chat] model=${CHAT_MODEL} error: ${chatResult.error}`);
           sendJson(res, 502, { error: `Chat completion failed: ${chatResult.error}` });
           return;
         }
         reply = chatResult.content;
         chatLatencyS = chatResult.latency_s;
+        console.log(`[chat] model=${CHAT_MODEL} ok latency=${chatLatencyS != null ? chatLatencyS.toFixed(2) : '?'}s`);
 
         const speechResult = await callSpeech({ modelAccessKey: MODEL_ACCESS_KEY, baseUrl: BASE_URL, model: TTS_MODEL, voice: TTS_VOICE, text: reply });
         speechLatencyS = speechResult.latency_s;
         if (speechResult.error) {
+          console.error(`[speech] model=${TTS_MODEL} voice=${TTS_VOICE} error: ${speechResult.error}`);
           speechAudio = null;
           speechError = speechResult.error;
         } else {
