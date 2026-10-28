@@ -384,10 +384,10 @@ function escapeHtmlClient(s) {
 
 function linkify(text) {
   var escaped = escapeHtmlClient(text);
-  return escaped.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
+  return escaped.replace(/(https?:\\/\\/[^\\s<]+)/g, function (url) {
     var trail = '';
     var clean = url;
-    var m = clean.match(/[.,;:!?)\]]+$/);
+    var m = clean.match(/[.,;:!?)\\]]+$/);
     if (m) {
       trail = m[0];
       clean = clean.slice(0, clean.length - trail.length);
