@@ -275,6 +275,8 @@ const PAGE_STYLE = `
   .bubble { padding: 11px 15px; border-radius: 16px; font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; }
   .bubble.user { background: var(--user-bubble); color: #fff; border-bottom-right-radius: 4px; }
   .bubble.assistant { background: #efeaff; color: #2a1a66; border-bottom-left-radius: 4px; }
+  .msg-row.system { align-self: center; align-items: center; max-width: 92%; }
+  .bubble.system { background: #fff4ea; color: #9a3412; border: 1px dashed #ffcf9e; font-size: 12.5px; font-style: italic; text-align: center; border-radius: 10px; }
   .bubble-meta { font-size: 10.5px; color: var(--muted); margin-top: 3px; padding: 0 4px; }
 
   .interim { min-height: 18px; font-size: 13px; color: var(--muted); font-style: italic; text-align: center; margin: 6px 0; }
@@ -459,6 +461,7 @@ function toggleListening() {
   recognition.maxAlternatives = 1;
 
   var finalTranscript = '';
+  var lastInterim = '';
 
   recognition.onstart = function () {
     isListening = true;
@@ -472,19 +475,38 @@ function toggleListening() {
       if (event.results[i].isFinal) finalTranscript += transcript;
       else interim += transcript;
     }
+    if (interim) lastInterim = interim;
     document.getElementById('interimText').textContent = finalTranscript + interim;
   };
   recognition.onerror = function (event) {
-    setStatus('Mic error: ' + event.error + '. Try again, or type your message below.');
+    var messages = {
+      'no-speech': "I didn't hear anything — try again, a bit closer to the mic.",
+      'audio-capture': 'No microphone was found. Check your mic and try again.',
+      'not-allowed': 'Microphone access was blocked. Allow mic permission for this site and try again.',
+      'service-not-allowed': 'Microphone access was blocked. Allow mic permission for this site and try again.',
+      'network': 'A network error interrupted speech recognition. Try again.',
+      'aborted': null,
+    };
+    var friendly = Object.prototype.hasOwnProperty.call(messages, event.error)
+      ? messages[event.error]
+      : ('Mic error: ' + event.error + '. Try again, or type your message below.');
+    if (friendly) {
+      addBubble('system', friendly, null);
+      setStatus(friendly);
+    }
   };
   recognition.onend = function () {
     isListening = false;
     updateMicUi(false);
     document.getElementById('interimText').textContent = '';
-    var text = finalTranscript.trim();
+    // The browser sometimes ends recognition without ever marking a result
+    // final (common for short one-shot phrases) — fall back to the last
+    // interim transcript rather than silently giving up.
+    var text = (finalTranscript || lastInterim).trim();
     if (text) {
       sendMessage(text);
     } else {
+      addBubble('system', "I didn't catch that — try again, or type your message below.", null);
       setStatus('Tap the mic and speak, or type a message below.');
     }
   };
