@@ -1,0 +1,43 @@
+name: voice-assistant-demo
+region: nyc
+services:
+  - name: web
+    environment_slug: node-js
+    github:
+      # Replace with your own repo once you've pushed this folder.
+      repo: your-github-username/voice-assistant-demo
+      branch: main
+      deploy_on_push: true
+    # Delete this line if this folder (voice-assistant-demo/) is itself the
+    # repo root. Set it to the right subpath if you pushed it inside a
+    # larger repo instead.
+    # source_dir: /voice-assistant-demo
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    http_port: 8080
+    envs:
+      # Start safe: dry-run mode needs no key and costs nothing. Flip to
+      # "false" once MODEL_ACCESS_KEY is set and you're ready to go live.
+      - key: DRY_RUN
+        value: "true"
+        scope: RUN_TIME
+        type: general
+      # Create this in the Control Panel: Inference -> Model Access Keys.
+      - key: MODEL_ACCESS_KEY
+        value: "REPLACE_WITH_YOUR_SERVERLESS_INFERENCE_MODEL_ACCESS_KEY"
+        scope: RUN_TIME
+        type: secret
+      # Chat completion model used for Nova's replies.
+      - key: CHAT_MODEL
+        value: "openai-gpt-oss-120b"
+        scope: RUN_TIME
+        type: general
+      # Text-to-speech model and voice used for the spoken reply.
+      - key: TTS_MODEL
+        value: "qwen3-tts-voicedesign"
+        scope: RUN_TIME
+        type: general
+      - key: TTS_VOICE
+        value: "alloy"
+        scope: RUN_TIME
+        type: general
