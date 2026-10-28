@@ -401,7 +401,9 @@ async function sendMessage(text) {
     var data = await res.json();
 
     if (!res.ok) {
-      setStatus(data.error || ('Request failed with status ' + res.status));
+      var errText = data.error || ('Request failed with status ' + res.status);
+      addBubble('system', errText, null);
+      setStatus('Tap the mic and speak, or type a message below.');
       setBusy(false);
       return;
     }
@@ -432,7 +434,8 @@ async function sendMessage(text) {
       setBusy(false);
     }
   } catch (err) {
-    setStatus('Request failed: ' + err.message);
+    addBubble('system', 'Request failed: ' + err.message, null);
+    setStatus('Tap the mic and speak, or type a message below.');
     setBusy(false);
   }
 }
